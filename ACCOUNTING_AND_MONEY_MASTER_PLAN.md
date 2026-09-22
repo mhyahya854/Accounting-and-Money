@@ -2,7 +2,7 @@
 
 Status: authoritative planning document for the first implementation phase
 Scope of this document: architecture, product direction, safety requirements, evaluation criteria, and implementation sequencing
-Implementation status: planning only; this document does not select an upstream application or authorize application scaffolding
+Implementation status: planning only; KMyMoney is the intended accounting-engine and financial-domain foundation, subject to implementation/prototype validation; this document does not authorize application scaffolding
 
 ## Document purpose and decision vocabulary
 
@@ -21,21 +21,30 @@ The plan is intentionally detailed about invariants and safety while remaining o
 
 ## 1. Executive vision
 
-Accounting and Money should make a person’s financial life understandable through ordinary folders and human-readable Markdown files. The graphical application should be a capable interface over that information, not the only place where the information exists. Hermes should be able to inspect the same local representation, answer questions, and request safe operations through a constrained command interface.
+Accounting and Money should make a person’s financial life understandable through ordinary folders and human-readable Markdown files. The graphical application should be a complete, locally usable interface over that information, not the only place where the information exists. KMyMoney is the intended accounting-engine and financial-domain foundation, subject to implementation/prototype validation. Hermes should be able to inspect the same local representation, answer questions, and request safe operations through a constrained command interface, but remains optional.
 
 The central model is:
 
 ```text
-                    Accounting App
-                          ⇅
-                    Sync / Rules Core
-                          ⇅
-                Accounting Folder Tree
-                   ⇅              ⇅
-                Hermes          Human
+                            USER
+                 ┌──────────┴──────────┐
+                 │                     │
+              APP UI          OPTIONAL HERMES CHAT
+                 └──────────┬──────────┘
+                            │
+             HERMES ACCOUNTING DOMAIN / SYNC CORE
+                            │ typed validated commands
+                            ▼
+                  KMYMONEY ACCOUNTING ADAPTER
+                            │
+                            ▼
+              CANONICAL MARKDOWN FILESYSTEM
+                            │
+                            ▼
+              DERIVED WORKBOOKS / CANVAS / INDEXES
 ```
 
-The system must preserve accounting correctness while keeping the durable representation legible to people and small language models. A model should interpret a user’s intent and select a constrained operation. Deterministic application code must validate the operation, perform accounting-critical calculations, write the affected records safely, and report a verified result.
+The system must preserve accounting correctness while keeping the durable representation legible to people and small language models. A model should interpret a user’s intent and select a constrained operation. The KMyMoney-backed deterministic accounting boundary and Hermes-owned integration code must validate the operation, perform or validate accounting-critical calculations, write the affected records safely, and report a verified result. The UI and ordinary accounting workflows must remain fully usable with Hermes, local models, and network access unavailable.
 
 The product is not merely a traditional accounting application with an AI assistant attached. Its differentiating idea is a transparent local financial workspace in which the filesystem, the app, and Hermes are coordinated views over the same user-owned records.
 
@@ -49,9 +58,9 @@ Important financial history must not be trapped solely in an opaque generated da
 
 If a value, match, relationship, or accounting interpretation is uncertain, the system must preserve the uncertainty and request review. It must not silently guess in a way that changes balances, income, expenses, liabilities, currencies, or history.
 
-### 2.3 Deterministic code owns accounting semantics
+### 2.3 The KMyMoney-backed deterministic engine owns accounting semantics
 
-The model may interpret intent, summarize evidence, and propose actions. Deterministic code must own validation, balancing, currency handling, duplicate detection, transaction state transitions, reconciliation, crash recovery, and mutations that affect financial meaning.
+The model may interpret intent, summarize evidence, and propose actions. KMyMoney is the intended accounting-engine and financial-domain foundation, subject to prototype validation. Its deterministic accounting machinery, behind a Hermes-owned domain and adapter boundary, must own or validate balancing, currency handling, transaction state transitions, reconciliation, and other financial consequences. Deterministic integration code must enforce typed commands, field ownership, identity mapping, duplicate handling, safe persistence, crash recovery, and verification. This boundary must not grow into a second independently maintained accounting engine.
 
 ### 2.4 The filesystem is an interface, not an accident
 
@@ -98,11 +107,11 @@ The eventual product should help a user:
 
 ## 4. Non-goals for the initial project direction
 
-The following are explicitly out of scope for this first planning run and remain non-goals until separately authorized:
+The following are explicitly out of scope for this planning run and remain non-goals until separately authorized:
 
 - Implementing the application.
 - Creating application source scaffolding, package files, databases, CI, or generated assets.
-- Selecting, forking, or embedding MMEX, GnuCash, KMyMoney, or another upstream application.
+- Implementing, forking, or embedding KMyMoney during this documentation-only run. KMyMoney is the intended accounting-engine foundation, but production adoption and the integration mechanism remain subject to the prototype gates in this plan.
 - Treating a particular database engine, UI toolkit, language, or desktop packaging technology as already chosen.
 - Connecting directly to banks or storing online banking credentials.
 - Creating a cloud-hosted financial service as the primary architecture.
@@ -111,33 +120,34 @@ The following are explicitly out of scope for this first planning run and remain
 - Storing real private financial data in the repository.
 - Assuming every raw document can be automatically interpreted.
 
-The project may later support optional bank integrations, encryption, mobile access, or tax-oriented reports, but those require separate threat, product, and compliance decisions.
+The project may later support optional bank integrations, encryption, mobile access, or tax-oriented reports, but those require separate threat, product, and compliance decisions. The app itself must support ordinary accounting without Hermes or an AI service; AI is an optional interface, not a runtime prerequisite.
 
 ## 5. Architectural overview
 
-The proposed architecture has five conceptual layers:
+The proposed architecture has six conceptual layers:
 
-1. **Canonical Accounting Folder** — user-owned Markdown records and preserved source files.
-2. **Sync and Rules Core** — parser, schema validator, relationship resolver, accounting invariants, mutation engine, conflict detector, journal, and recovery process.
-3. **Derived State** — rebuildable indexes, search structures, aggregates, reports, caches, and application state.
-4. **Application UI** — account, transaction, evidence, reconciliation, budget, goal, subscription, debt, and review workflows.
-5. **Hermes Interface** — read commands, search operations, constrained mutation commands, validation responses, and result verification.
+1. **Canonical Accounting Folder** — user-owned Markdown records and preserved source files; durable canonical financial representation.
+2. **Hermes Domain and Sync Core** — parser, schema validator, relationship resolver, field ownership, typed commands, KMyMoney adapter, conflict detector, journal, recovery, and verification.
+3. **KMyMoney Accounting Foundation** — intended deterministic accounting and financial-domain machinery, accessed through the adapter and subject to prototype validation.
+4. **Derived State** — rebuildable indexes, search structures, account workbooks, canvas graph/layouts, aggregates, reports, caches, and application state.
+5. **Application UI** — locally complete account, transaction, evidence, reconciliation, budget, goal, subscription, debt, import, backup, restore, diagnostics, workbook, report, and canvas workflows.
+6. **Optional Hermes Interface** — read commands, search operations, constrained mutation commands, validation responses, and result verification. The app and core must not depend on Hermes, a local model, or internet access.
 
 Conceptually:
 
 ```text
 Human files / raw evidence
             ⇅
-Canonical parser and schema validator
+Hermes-owned domain, canonical parser, and schema validator
             ⇅
-Deterministic accounting and mutation core
-       ⇙                 ⇘
-  Derived indexes       App UI / Hermes API
-       ⇘                 ⇙
-    Reports, search, verified responses
+KMyMoney adapter and deterministic accounting foundation
+       ⇅                 ⇅
+Canonical Markdown     App UI / optional Hermes API
+       ⇩                 ⇩
+Derived workbooks, canvas, indexes, reports, verified responses
 ```
 
-The exact process boundaries are deferred. The rules core may initially be a library used by the UI and Hermes adapter, or it may be a local service with a stable protocol. The choice must preserve the same invariants and filesystem interface.
+The exact process boundaries are deferred. The Hermes domain and adapter may initially be a library used by the UI and optional Hermes interface, or they may use a local service with a stable protocol. The choice must preserve the same invariants and filesystem interface. KMyMoney is accessed behind the Hermes-owned domain boundary; its UI and internal storage schema are not the canonical filesystem contract.
 
 ### 5.1 Accounting engine authority, canonical state, and field ownership
 
@@ -149,7 +159,9 @@ The governing separation is:
 
 > **Hermes interprets intent. The accounting engine performs accounting. The filesystem stores the verified result.**
 
-The accounting software or deterministic accounting engine is the financial authority. It must perform or validate, using deterministic and tested financial rules, all accounting-critical work, including:
+KMyMoney is the intended accounting-engine and financial-domain foundation for Hermes Accounting, subject to implementation/prototype validation. It is intended for its mature personal-finance orientation and candidate support for double-entry semantics, split transactions, account models, loans, schedules, budgets, investments, currencies, reconciliation, exact/rational-style monetary handling, transaction boundaries, storage and importer extension points, mature tests, and cross-platform foundations. These are reasons to validate the fit, not permission to assume feature parity, API stability, precision behavior, headless operation, or integration safety without prototype evidence.
+
+The accounting authority is the validated KMyMoney-backed deterministic engine boundary, not an independently reimplemented second ledger. Hermes-owned code provides a stable domain and command boundary, maps Hermes identities and canonical records to/from engine objects, validates that the result can be represented without loss, and owns synchronization, journaling, privacy, recovery, and verified persistence. It must perform or validate, using deterministic and tested financial rules, all accounting-critical work, including:
 
 - account balance calculations, transaction posting, double-entry or equivalent accounting invariants, transfers, transfer neutrality, and all financially meaningful postings;
 - credit-card liabilities, credit-card payments, statement balances, current balances, available credit, interest, fees, refunds, disputes, chargebacks, and provisional credits;
@@ -163,7 +175,7 @@ The accounting software or deterministic accounting engine is the financial auth
 
 The exact accounting model, including the future boundary for double-entry postings and conceptual allocations, remains subject to the investigation and review already required by this plan. The authority boundary does not remain optional: Hermes, OCR, importers, and text editing must not perform authoritative accounting mathematics or bypass deterministic validation.
 
-Markdown and the Accounting folder are the durable, transparent representation of the resulting committed financial state. They are not the accounting engine. After the engine validates and applies an operation, it writes or updates the appropriate canonical Markdown records, updates rebuildable derived state, re-reads the result, and verifies it before reporting success. A database or other machine state may be used internally for performance or crash recovery, but it must not quietly become the only authoritative copy of the user’s financial records.
+Markdown and the Accounting folder are the durable, transparent representation of the resulting committed financial state. They are not the accounting engine, and they must not depend on KMyMoney's internal file or storage schema. After the engine validates and applies an operation, the integration writes or updates the appropriate canonical Markdown records, updates rebuildable derived state, re-reads the result, and verifies it before reporting success. A KMyMoney working store, database, or other machine state may be needed internally for engine operation, performance, or crash recovery, but it must not quietly become the only authoritative copy of the user’s financial records. Its consistency and recovery relationship to canonical Markdown must be demonstrated before production use.
 
 The normal operation boundary is:
 
@@ -210,6 +222,39 @@ Where applicable, the engine must enforce explicit invariants including:
 - currencies are explicit and monetary arithmetic uses deterministic decimal or minor-unit handling;
 - duplicate imports do not create duplicate economic events;
 - calculated fields are reproducible from authoritative inputs where feasible.
+
+### 5.2 KMyMoney integration boundary and prototype gates
+
+The Hermes-owned domain model and canonical financial representation must remain conceptually independent of KMyMoney so the engine can be replaced if evidence later requires it. KMyMoney identifiers, classes, file formats, and storage tables must not become the public filesystem schema or the only means of reconstructing committed user data. Stable Hermes IDs and explicit mapping records are authoritative across engine upgrades and rebuilds.
+
+Before broad UI development or production adoption, a synthetic-data prototype must establish all of the following:
+
+- the supported KMyMoney version and license obligations, platform availability, extension/API stability, and an upstream-maintainable integration path;
+- whether required accounting operations can run through a deterministic, supportable boundary without relying on undocumented UI behavior;
+- faithful mapping and round-trip reconstruction for Hermes accounts, institution/payment-instrument relationships, transactions, splits, currencies, transfers, loans, schedules, reconciliation, budgets, and investments when enabled;
+- monetary precision, supported currency scales, rounding, serialization, and behavior for BHD, PKR, SAR, and other selected currencies, including the claimed exact/rational-style handling;
+- parity on representative synthetic accounting fixtures, including cross-currency transfers with fees, card liability payments, loan allocations, pending-to-posted changes, refunds, reconciliation, and imported corrections;
+- crash-safe commit and recovery behavior when engine state and canonical Markdown both need updates, including rebuild from canonical files and detection of stale or conflicting engine state;
+- a clear strategy for KMyMoney working storage: in-memory or generated/rebuildable where feasible, otherwise documented, backed up, auditable, and transactionally coordinated with canonical files;
+- a decision record describing limitations, unresolved risks, and whether the chosen integration remains acceptable.
+
+If a gate fails, record the incompatibility and a concrete alternative or deferred decision before expanding the integration. Do not silently relax canonical-file, offline, engine-authority, or recovery requirements to accommodate the prototype.
+
+### 5.3 App independence and adaptive feature visibility
+
+The application is a complete accounting interface and must remain usable when Hermes is unavailable, a local model is unavailable, AI is disabled, there is no internet, or the user does not want AI. Without Hermes the app must support account and transaction management; transfers, credit cards, loans, subscriptions, budgets, savings, goals, and enabled investments; imports and Raw intake; OCR and evidence review; reconciliation, search, reports, backup, restore, diagnostics, account workbook generation, and canvas visualization. Hermes is an optional alternate interface to the same workspace and may not maintain a competing ledger. In this plan, “Hermes Accounting Domain” names the product's deterministic domain and synchronization layer; it is not a dependency on Hermes chat or a local language model.
+
+First-launch setup should ask which financial features and account structures are relevant, including how many institutions and accounts the user has, how cards link to accounts, cash, savings, credit cards, loans, subscriptions, budgets, savings goals or sinking funds, investments, tracked assets, and the primary reporting currency. Normal navigation and setup should show only relevant/enabled features; for example, an unused Investments module and its setup surface should stay hidden. A possible navigation set is Home, Accounts, Transactions, Subscriptions, Goals, Documents, Reports, Canvas, and Settings, with optional areas shown only when enabled. A user may enable a feature later through Settings → Features → feature → Enable without data loss. Disabling a feature hides its ordinary UI and setup surfaces but never deletes its records; re-enabling restores access. Internal engine capability does not require exposing unused features or creating clutter in the user's workspace.
+
+### 5.4 Infinite Financial Canvas
+
+The product should include an endless, pannable, zoomable financial canvas as a derived visual interface over canonical records and engine results. It is not an accounting authority. One canonical transaction may appear in multiple views without being duplicated. The canvas should support account lanes, timelines, daily or periodic flows, merchant and category clusters, subscription and loan flows, travel spending, and transfer networks; filters and layout changes must not mutate canonical financial records.
+
+Account Lanes are a primary view. Each financial account has a chronological lane, and each transaction appears in the correct lane using stable account identity, event time/date, lifecycle status, and relationship data. A single internal transfer ID connects its source and destination effects across the two lanes. The canvas must show pending, completed, failed, reversed, delayed, and supported partial states from committed records; it must not infer completion or calculate authoritative effects.
+
+Where available and permitted, a node may expose merchant, amount and currency, event date/time, institution/account, masked payment instrument, category, location, balance before and after, lifecycle/reconciliation/review indicators, and links to preserved evidence. Clicking a node opens its canonical record. Balance continuity is a derived display from engine-validated results; a bank-reported observation must remain distinguishable from an engine-calculated balance. Do not persist redundant per-transaction calculated balances as new authoritative facts or cause rewrite storms.
+
+Saved canvas layouts may preserve node positions, zoom, filters, grouping, visual annotations, and pinned record IDs in a canvas/layout file (for example, a `.canvas` file). Such files are UI state only, never financial truth; refresh them from canonical state when records change. Canvas grouping may use date/time, account, card, transfer ID, merchant, category, subscription, and permitted location metadata. Every view and layout must respect the user's location-privacy settings.
 
 ## 6. Filesystem-as-interface philosophy
 
@@ -291,6 +336,8 @@ The following may be generated and rebuilt whenever the canonical representation
 - account and category lookup tables;
 - balance aggregates;
 - reports and charts;
+- per-account formula workbooks and optional aggregate workbooks;
+- derived financial canvas graphs and saved layout state;
 - duplicate candidate indexes;
 - search caches;
 - UI layout state;
@@ -322,15 +369,19 @@ The following is a proposed starting topology. It is intentionally subject to im
 Accounting/
 ├── Accounting.md
 ├── Accounts/
-│   ├── Current/
-│   ├── Checking/
-│   ├── Savings/
-│   ├── Credit Cards/
-│   ├── Cash/
-│   ├── Loans/
-│   ├── Investments/
-│   ├── Assets/
-│   └── Other/
+│   └── Institution A/
+│       ├── Institution.md
+│       ├── Current Account/
+│       │   ├── Account.md
+│       │   ├── Current Account - Master.xlsx
+│       │   ├── Cards/
+│       │   │   └── Physical Card/Card.md
+│       │   ├── Statements/
+│       │   ├── Documents/
+│       │   └── Reconciliation/
+│       └── Savings Account/
+│           ├── Account.md
+│           └── Savings Account - Master.xlsx
 ├── Transactions/
 ├── Transfers/
 ├── Income/
@@ -380,9 +431,27 @@ The preferred design is:
 - references from transactions, accounts, statements, reports, and review queues;
 - rebuildable indexes under `.hermes/index/`.
 
-The account folders must not contain copied transaction files unless a future upstream engine makes a compelling, tested case for a mirrored representation. If account-local navigation is needed, use references or generated views and label them as derived.
+Accounts should be organized for people by financial institution, then by account, with zero or more payment instruments under each account. An account may have its own account record, account-specific workbook, statements/documents/reconciliation views, and a Cards or Instruments folder. Stable IDs and explicit relationships, not names or paths, define identity. Never use full IBANs or account numbers in filenames; use masked/display-safe labels. A replacement, virtual, or supplementary card does not create a new account by itself. When a card product has its own balance or account relationship, model the underlying financial account and link the instrument to it.
+
+The account folders must not contain copied transaction files unless a future upstream engine makes a compelling, tested case for a mirrored representation. If account-local transaction navigation is needed, use references or generated views and label them as derived. Evidence binaries remain stored once; account-local document areas may contain stable references or generated views rather than duplicate source files.
 
 The boundary between `Raw/`, `Receipts/`, `Statements/`, and other curated evidence folders is deferred. A likely workflow is to preserve the original under `Raw/`, then create a stable evidence record or reference after review without deleting the source.
+
+### 8.2 Institution, account, and payment-instrument identity
+
+A financial institution, financial account, and payment instrument are separate domain entities. One institution may own or provide many accounts. An account may have zero, one, or many payment instruments, such as physical, virtual, replacement, or supplementary cards. Do not create an account solely because a new card is issued. Conversely, a card or provider product with a distinct balance, IBAN, or account relationship must link to the corresponding underlying account. A payment instrument used on a transaction is recorded by stable ID and does not replace the account ID.
+
+Institution, account, and instrument entities must have stable IDs and explicit relationships. Full IBANs, full account numbers, and full card numbers must not be filesystem identifiers or ordinary filenames. Store only the minimum necessary identifying data, mask it in ordinary UI and names, and keep authentication secrets and CVVs out of the workspace. The exact schema and account-folder naming remain proposed design subject to implementation validation.
+
+### 8.3 Account-specific Excel workbooks
+
+This is a hard product requirement: every enabled financial account has its own functional `.xlsx` master workbook, located with that account's human-readable folder. The workbook is a generated, rebuildable account artifact based on canonical records and validated engine results; it is not a second ledger. Canonical transaction files remain singular in `Transactions/`, and their factual rows may be materialized into workbook tables for inspection and formula use. Editing a workbook cell must not directly commit an accounting change; any supported correction must re-enter the typed mutation, validation, preview, and commit flow, with unsupported edits surfaced for review or replaced by a verified regeneration.
+
+Applicable calculated workbook values must contain real spreadsheet formulas rather than hard-coded results. Formulas may calculate account-currency income and expense totals, net movement, monthly/category totals, running views, fee summaries, reconciliation differences, and dashboards from validated input rows. Formula cells should be protected from accidental replacement while remaining inspectable where practical. Formulas may not bypass engine validation or become authoritative for postings, transfers, FX conversion, loan allocation, or other accounting semantics. Formula parity means recalculated workbook outputs agree with deterministic engine results within the documented currency precision; unexplained differences are reported and investigated, never silently overwritten.
+
+Do not sum unlike currencies into one meaningless total. Preserve original and settlement amounts/currencies, account currency, observed FX relationship, fees, and fee currency as separate values. Account-level formula totals use only appropriate account-currency postings or clearly labeled conversions under an explicit policy. The formula design and compatible calculation/recalculation runtime remain future implementation validation; formula text alone is not proof that the workbook calculates correctly.
+
+Workbook generation must be failure-isolated from canonical accounting state. Stage a replacement, validate workbook structure and formulas, recalculate where a compatible spreadsheet runtime is available, and replace the prior usable workbook safely/atomically where supported. A failed generation leaves canonical records unchanged and preserves the previous usable workbook; workbooks can be rebuilt from canonical data. Optional institution/workspace summary workbooks may be considered later and should be generated from canonical records without fragile absolute-path links.
 
 ## 9. Markdown and entity model
 
@@ -391,7 +460,9 @@ The boundary between `Raw/`, `Receipts/`, `Statements/`, and other curated evide
 The first schema investigation should cover at least these entity types:
 
 - project manifest and settings;
+- financial institution;
 - account;
+- payment instrument/card;
 - transaction;
 - transfer;
 - transaction component or posting;
@@ -438,7 +509,7 @@ Relationships should use IDs as their authoritative target and may include human
 - stale path hint;
 - cycle where a cycle is not allowed.
 
-Examples of relationships include transaction-to-account, transaction-to-evidence, refund-to-original-transaction, statement-to-account, payment-to-loan, subscription-to-observed-transactions, and transfer-to-source/destination accounts.
+Examples of relationships include institution-to-accounts, account-to-payment-instruments, transaction-to-account and payment-instrument, transaction-to-evidence, refund-to-original-transaction, statement-to-account, payment-to-loan, subscription-to-observed-transactions, and transfer-to-source/destination accounts.
 
 Relationship edits are financial mutations when they change meaning. A category link can be a normal user edit; changing an expense into a transfer requires stricter validation and an audit event.
 
@@ -516,7 +587,7 @@ Supported examples include bank and credit-card statement PDFs, CSV exports, OFX
 The intended workflow is:
 
 ```text
-File enters Raw/
+File enters Raw/ from the app, filesystem, or optional Hermes attachment
         ↓
 Detect format and metadata
         ↓
@@ -541,15 +612,17 @@ Link original evidence
 Update app and rebuildable indexes, then re-read and verify
 ```
 
-Raw files must not be silently destroyed, rewritten, or moved without a provenance record. Duplicate ingestion should produce a visible relationship to the original rather than a second canonical document. Unknown and unsupported files should remain preserved and reviewable.
+Files sent to Hermes must enter this same secure Raw/evidence intake path and appear in the application's review queue when review is required. Hermes may suggest a classification or candidate account/transaction relationship, but may not keep a second attachment database or bypass the app's evidence and accounting validation pipeline. The intake should preserve the original before OCR or interpretation and record its source and stable evidence identity.
+
+Raw files must not be silently destroyed, rewritten, or moved without a provenance record. Duplicate ingestion should produce a visible relationship to the original rather than a second canonical document. Unknown and unsupported files should remain preserved and reviewable. Treat file names, document contents, OCR text, and embedded instructions as untrusted input; malformed, malicious, low-confidence, impossible, or timed-out extraction must not mutate authoritative financial state.
 
 OCR, parsing, and model extraction are proposals until deterministic accounting-engine validation and, where required, human review establish what may become canonical. An extracted amount, currency, match, status, or relationship must not become authoritative financial state merely because an importer or model produced it. Extraction results should be stored separately from the original so the original remains authoritative evidence.
 
 ## 13. Evidence and document management
 
-Evidence must be linkable to transactions, accounts, loans, subscriptions, assets, transfers, disputes, reimbursements, and other financial entities. One source document may support many records, such as one monthly statement supporting dozens of transactions.
+Evidence must be linkable to institutions, accounts, payment instruments, transactions, loans, subscriptions, assets, transfers, disputes, reimbursements, and other financial entities. One source document may support many records, such as one monthly statement supporting dozens of transactions. App-uploaded, Raw-folder, imported, and Hermes-sent files use the same intake, preservation, extraction, duplicate, and review rules.
 
-Binary files should be stored once. A stable evidence record should include an ID, original path, content hash, media type, observed name, imported time, provenance, review status, and optional extracted text or structured results. The system must support evidence links that survive supported folder moves.
+Binary files should be stored once. A stable evidence record should include an ID, original path, content hash, media type, observed name, imported time, provenance, review status, and optional extracted text or structured results stored separately from the original. Extraction failure must not alter, replace, or discard the original. The system must support evidence links that survive supported folder moves.
 
 Evidence operations should distinguish:
 
@@ -566,7 +639,7 @@ The app should make it possible to find a receipt for a transaction, find transa
 
 The account model must support current and checking accounts, savings, credit cards, cash and wallets, prepaid accounts, loans, mortgages, personal debts, investments, assets, liabilities, and custom account types.
 
-An account should carry a stable ID, name, type, currency, institution label if the user chooses to record it, masked identifying information if needed, opening state, status, and links to evidence and statements. It must not store passwords, PINs, CVVs, or authentication secrets.
+An account should carry a stable ID, name, type, currency, institution ID when known, masked identifying information if needed, opening state, status, and links to evidence and statements. Institution, account, and payment-instrument identities remain distinct. A payment instrument such as a physical, virtual, replacement, or supplementary card links to the account it accesses; a product with its own liability/balance is represented by the corresponding financial account and a related instrument. Full IBANs, full account numbers, and full card numbers are not filenames or filesystem identifiers. The model must not store passwords, PINs, CVVs, or authentication secrets.
 
 The model must distinguish an account’s currency from currencies observed in its transactions. Accounts may have restrictions, credit terms, withdrawal rules, or ownership semantics that affect transfer and reporting behavior.
 
@@ -578,6 +651,7 @@ A transaction must support more than a generic date, payee, amount, and category
 
 - stable transaction ID;
 - account and counterparty;
+- institution and payment-instrument IDs where known;
 - merchant or payee;
 - purchase, authorization, posting, and settlement dates;
 - original amount and currency;
@@ -586,7 +660,7 @@ A transaction must support more than a generic date, payee, amount, and category
 - fees, taxes, and other components;
 - category and subcategory;
 - tags and notes;
-- explicit location only when provided;
+- layered raw and normalized location facts, only when retained under the user's location-privacy settings;
 - lifecycle status;
 - source and source document;
 - linked transaction and transfer relationships;
@@ -595,6 +669,14 @@ A transaction must support more than a generic date, payee, amount, and category
 - import and manual-edit provenance.
 
 The schema should require only fields that are meaningful for the specific event. A cash note, pending authorization, bank transfer, loan repayment, and card settlement should not be forced into an identical shape that loses semantics.
+
+### 15.1 Layered location facts and privacy
+
+When location is available and the user has permitted its retention, a transaction should preserve the distinct source facts rather than collapse them into a guessed string. Potential raw values include the bank location text, merchant descriptor, receipt address, and terminal text. Normalized values may include country, region, city, district, venue/branch, and postal code. Optional location attributes include latitude/longitude, timezone, online or in-person mode, merchant country, user-confirmation state, geocoded result, confidence, source provenance, and whether device location was used. Raw and normalized values remain separately identifiable so later corrections do not erase the source wording.
+
+Unknown or conflicting location must remain unknown or in review; do not fabricate a physical purchase location from a merchant headquarters or other weak inference. Online transactions may identify the merchant country while leaving city and physical location empty. Geocoding and location enrichment are optional and configurable; device-derived location and precise coordinates require explicit opt-in. The user must be able to choose no retained location, country only, city/region, branch/address, precise coordinates, or permitted device-derived location.
+
+Location privacy settings govern extraction and retention of structured location metadata, as well as its use in search indexes, reports, account workbooks, canvas nodes/grouping/layouts, logs, exports, backups where configurable, and Hermes/model context. When the user chooses no retained location, preserve the original evidence unchanged as required but do not extract or persist a separate structured location value. The exact schema and retention controls remain subject to implementation design; raw source evidence and its metadata must still follow the evidence-preservation rules.
 
 ## 16. Multiple currencies and international spending
 
@@ -699,7 +781,7 @@ destination:
   currency: USD
 ```
 
-The source and destination records must be linked by a stable transfer ID. A transfer fee may be a separate expense component or a linked fee event, depending on evidence and the accounting engine’s representation. The operation must not create artificial spending and artificial income merely because two account statements show opposite sides.
+The source and destination effects must be linked to one canonical transfer object by a stable transfer ID. A transfer fee may be a separate expense component or a linked fee event, depending on evidence and the accounting engine’s representation. The operation must not create artificial spending and artificial income merely because two account statements show opposite sides. In the derived Account Lanes canvas, the outgoing and incoming effects appear in their respective account lanes and are connected by that same transfer ID; lifecycle, currencies, observed FX, and fee relationships come from committed state.
 
 The accounting engine must validate and apply both transfer sides atomically, enforce transfer neutrality subject to explicit FX and fees, and recalculate both affected account states before canonical Markdown is updated.
 
@@ -834,6 +916,8 @@ The command layer should have a small vocabulary, stable field names, explicit a
 
 The acceptance bar is not that a small model can perform arbitrary accounting. It is that it can safely complete supported, well-bounded tasks by selecting a valid command and relying on deterministic code for semantics.
 
+Small-model retrieval should resolve candidate merchants, date ranges, account/instrument IDs, evidence IDs, and permitted location-based filters deterministically, then provide only a small relevant context package. For example, a request for spending in a city must use the retained raw/normalized location evidence and privacy policy; Hermes may explain the result but must not infer missing locations or calculate financial totals itself.
+
 ## 33. Deterministic mutation API and commands
 
 The exact transport is deferred, but the mutation model should include:
@@ -924,6 +1008,10 @@ The proposed write protocol is:
 
 On restart, the core must inspect incomplete journal entries, determine whether the operation is uncommitted, fully committed, or partially applied, and recover deterministically. Temporary files must not be mistaken for canonical records. The precise atomicity guarantees of Windows, Linux, and macOS filesystems require platform testing.
 
+Crash safety is a hard requirement that must be demonstrated through deterministic fault injection, not inferred from atomic rename support. Tests must terminate the process before staging, after staging, after journal creation, between multi-file writes, before and after replacement, after canonical commit but before derived-state refresh, and after commit but before acknowledgement. Exercise transfers, loan payments, evidence association, reconciliation, migration, backup, and restore. After recovery each operation must yield either its valid pre-operation state or its complete valid post-operation state; never a half-transfer, half-loan-payment, broken relationship, or orphaned commit.
+
+At minimum, test an internal transfer with Account A at 1,000 SAR and Account B at 200 SAR, transferring 300 SAR from A to B. Kill the app after A is staged or changed but before B would normally update. Recovery may produce only A=1,000/B=200 or A=700/B=500; A=700/B=200 and A=1,000/B=500 are invalid. Repeat at relevant commit boundaries to prove recovery is deterministic.
+
 ## 38. Edge-case catalogue
 
 Edge cases are part of the architecture, not merely future bug fixes. The project should maintain an exhaustive machine-testable catalogue. Every discovered situation should be evaluated for representation, filesystem form, app behavior, import behavior, sync behavior, Hermes behavior, validation, recovery, and tests.
@@ -974,6 +1062,13 @@ The future project must establish layered tests:
 - crash-recovery tests at every journal and atomic-replace boundary;
 - duplicate import tests and pending-to-posted matching tests;
 - multi-currency, FX, fee, refund, credit-card, loan, savings, goal, subscription, budget, and reconciliation tests;
+- KMyMoney adapter and domain-mapping tests for exact amounts, split transactions, cross-currency operations, and lossless round trips;
+- application workflows with Hermes, local models, and network access unavailable;
+- adaptive feature onboarding, hide/re-enable behavior, and proof that disabling a feature never deletes records;
+- per-account workbook generation tests for actual formulas, formula recalculation, formula-to-engine parity, multiple currencies, failed generation, and preservation of the prior usable workbook;
+- canvas graph tests for correct account lanes, linked transfer edges, lifecycle states, derived balance continuity, location privacy, and saved layouts that cannot mutate canonical data;
+- location-provenance tests for preserved raw and normalized values, online/unknown location, opt-out, and no fabricated coordinates or physical locations;
+- OCR/Hermes attachment tests proving one evidence pipeline, original-file preservation, review gating, and no mutation after extraction failure or malicious input;
 - malformed Markdown, duplicate ID, missing attachment, stale index, and conflict tests;
 - evidence linking and one-source-to-many-record tests;
 - Raw watcher tests for debounce, duplicate events, partial files, and rescan;
@@ -1020,9 +1115,11 @@ The project must investigate:
 
 The canonical file format must remain portable even if UI or packaging layers differ by platform.
 
-## 41. Future upstream accounting-application evaluation
+## 41. KMyMoney foundation and integration validation
 
-Choosing the upstream accounting application is not part of this run. Any future candidate evaluation must be based on repository-level investigation, documented evidence, a prototype or integration spike, and an explicit decision record.
+KMyMoney is the intended accounting-engine and financial-domain foundation for Hermes Accounting, subject to implementation/prototype validation. This direction reflects its mature personal-finance orientation and candidate strengths in double-entry semantics, split transactions, loans, account models, schedules, budgets, investments, currencies, reconciliation, exact/rational-style monetary handling, transaction boundaries, storage and importer extension points, tests, and cross-platform foundations. The plan does not treat these claims as validated fit for Hermes: the prototype gates in section 5.2 must test each needed capability and the integration boundary with synthetic data.
+
+The evaluation must distinguish using KMyMoney's accounting/domain machinery from adopting its UI or internal file/storage schema. Hermes owns the stable domain mapping and canonical Markdown representation. Evaluate the least invasive maintainable integration path and upstream contribution strategy; avoid an unnecessary long-lived fork or patches that make upgrades unsafe. Any unresolved implementation choice, compatibility issue, or production adoption decision remains a future investigation and must be recorded with evidence.
 
 Evaluation criteria should include:
 
@@ -1045,45 +1142,49 @@ Evaluation criteria should include:
 - extension points, API stability, and migration behavior;
 - ability to retain source provenance and user edits.
 
-Candidates may include mature open-source personal-finance or accounting projects, but the project must not select or fork one based solely on name recognition or feature-list claims. A candidate that has strong accounting correctness but cannot support a transparent sync boundary may be less suitable than a candidate with a cleaner extensibility model; this tradeoff requires evidence.
+If a required prototype gate fails, document the failure and then investigate alternatives against the same accounting, canonical-file, portability, privacy, and recovery requirements. Do not treat a feature list, upstream reputation, or the existence of plugins as proof that an integration is safe or maintainable.
 
 ## 42. Proposed implementation phases
 
 The following sequence is a planning proposal, not an authorization to begin implementation during this documentation-only run.
 
-### Phase 0 — Evidence and decision preparation
+### Phase 0 — KMyMoney prototype and decision preparation
 
-Define the evaluation rubric, threat model, accounting vocabulary, fixture policy, field-ownership policy, accounting-engine authority boundary, and project decision-record format. Investigate candidate upstream applications without selecting one prematurely.
+Define the evaluation rubric, threat model, accounting vocabulary, synthetic fixture policy, field-ownership policy, accounting-engine authority boundary, and decision-record format. Prototype the KMyMoney operations, version/license/API fit, platform support, currency precision, mapping/round trips, and crash-safe relationship to canonical Markdown described in sections 5.2 and 41. Record results before committing to a production integration mechanism.
 
-### Phase 1 — Canonical format and invariants
+### Phase 1 — Hermes domain, canonical format, and invariants
 
-Specify entity schemas, IDs, relationships, numeric precision, dates, provenance, schema versioning, field ownership, canonical versus derived state, core accounting invariants, deterministic calculation responsibilities, and representative synthetic fixtures. Validate the design with accounting review.
+Specify the Hermes-owned institution/account/payment-instrument model, entity schemas, stable IDs and KMyMoney mappings, relationships, numeric precision, dates and location provenance, schema versioning, field ownership, canonical versus derived state, core accounting invariants, and representative synthetic fixtures. Validate lossless representation and the design with accounting review.
 
-### Phase 2 — File-native rules core
+### Phase 2 — KMyMoney adapter, file synchronization, and recovery
 
-Implement parsing, validation, stable relationship resolution, typed read operations, deterministic accounting calculations, dependency recalculation, field-ownership enforcement, and safe transactional writes. Confirm that canonical Markdown is written only from validated engine results and that derived state can be deleted and rebuilt.
+Implement the supported Hermes-domain/KMyMoney adapter, canonical parsing and validation, stable relationship resolution, typed commands, dependency handling, field-ownership enforcement, two-way synchronization, and coordinated transactional writes. Build the journal and fault-injection harness early. Confirm that canonical Markdown is written only from validated engine results, recovery yields an all-or-nothing valid state, and any KMyMoney working state can be reconciled or rebuilt safely.
 
 ### Phase 3 — Import and Raw workflow
 
-Add source preservation, file hashing, duplicate detection, supported importers, extraction result storage, deterministic engine validation of candidate facts, uncertainty states, review queue, evidence linking, and Raw folder watching.
+Add source preservation, file hashing, duplicate detection, supported importers, OCR/extraction result storage, deterministic engine validation of candidate facts, uncertainty states, review queue, evidence linking, the shared app/filesystem/Hermes attachment intake pipeline, and Raw folder watching.
 
-### Phase 4 — Two-way synchronization
+### Phase 4 — Account workbooks and formula validation
 
-Implement app-to-file and file-to-app synchronization, direct-edit field-ownership detection, conversion of semantic edits into engine operations, dependency recalculation, content baselines, conflict handling, move and rename detection, journal recovery, and full mutation verification.
+Generate one functional `.xlsx` master workbook for each enabled account with real formula-driven totals and derived values from validated canonical inputs. Establish currency-safe formula rules, recalculation checks, formula-to-engine parity, discrepancy reporting, and failure-isolated safe replacement before relying on the workbooks.
 
-### Phase 5 — Application UI
+### Phase 5 — Canvas data and account-lane semantics
 
-Build the cross-platform desktop interface over the rules core, beginning with accounts, transactions, evidence, review, reconciliation, and safe edit flows.
+Define derived canvas nodes/edges, account lanes, one-ID transfer visualization, transfer lifecycle, cross-currency details, balance continuity, location filtering under privacy controls, and saved layout state. Prove the graph reflects canonical/engine state and cannot mutate accounting data.
 
-### Phase 6 — Hermes interface
+### Phase 6 — Complete adaptive application UI
 
-Expose constrained discovery, read, propose, validate, calculate, preview, commit, write, re-read, and verify commands. Add small-model fixtures proving that Hermes submits typed intent while deterministic software performs accounting, plus refusal behavior for ambiguous or unsupported operations.
+Build the cross-platform desktop application over the rules core. Deliver full ordinary accounting, Raw/evidence, OCR review, reconciliation, search, reports, backup/restore, diagnostics, workbooks, and canvas workflows without Hermes. Add first-launch adaptive feature setup and prove later feature enablement restores retained data.
 
-### Phase 7 — Expanded financial domains
+### Phase 7 — Optional Hermes interface
 
-Add credit cards, loans, debt, savings goals, subscriptions, budgets, investments if selected, and more complex dispute and FX workflows with tests before broad UI exposure.
+Expose constrained discovery, read, propose, validate, calculate, preview, commit, write, re-read, and verify commands. Add small-model fixtures proving Hermes submits typed intent and uses the shared file-intake pipeline while deterministic software performs accounting; include refusal behavior for ambiguous or unsupported operations. Keep the app fully functional if this phase is absent or disabled.
 
-### Phase 8 — Packaging, migration, and hardening
+### Phase 8 — Expanded financial domains
+
+Add and validate credit cards, loans, debt, savings goals, subscriptions, budgets, enabled investments, and complex dispute and FX workflows through the standalone app and engine adapter before broad exposure.
+
+### Phase 9 — Packaging, migration, and hardening
 
 Deliver Windows, Linux, and macOS packaging, upgrade and migration tools, privacy review, malicious-document defenses, backup and restore, accessibility improvements, and release acceptance testing.
 
@@ -1120,16 +1221,33 @@ The project should not be considered production-ready until it can demonstrate a
 25. App-created transactions, loan payments, foreign subscriptions, credit-card payments, transfers, refunds, and imports update canonical Markdown only after engine validation and calculation.
 26. Every committed accounting operation writes canonical files, updates derived state, re-reads the result, verifies it, and reports success only after verification.
 27. Hermes can interpret intent and request typed operations without independently calculating authoritative balances, FX, loans, liabilities, transfers, refunds, reconciliation, or other accounting consequences.
+28. KMyMoney has passed documented prototype gates for the required domains, currencies, deterministic operations, platform needs, round-trip mapping, extension path, and crash recovery before production adoption; failed gates remain explicit blockers or trigger a recorded decision.
+29. The Hermes-owned canonical domain and Markdown representation can be reconstructed without depending on KMyMoney's internal schema, IDs, or opaque storage, and the adapter does not create a competing independently maintained accounting engine.
+30. The complete accounting app remains usable with Hermes, local models, AI features, and internet access disabled, including account and transaction work, transfers, enabled financial modules, evidence intake/review, reconciliation, search, reports, backup/restore, diagnostics, workbook generation, and canvas.
+31. First-launch setup exposes only relevant/enabled feature surfaces; disabling and re-enabling features never deletes records and restores access to retained data.
+32. Multiple accounts under one institution remain independent, cards/payment instruments are distinct from accounts, and multiple or replacement cards do not create false accounts. Full IBANs and account/card numbers are not used as filenames or stable IDs.
+33. Every enabled financial account has a usable `.xlsx` workbook with actual formulas for applicable calculated values, and formula cells recalculate to results matching deterministic engine results within explicit currency precision.
+34. Unlike currencies are never silently combined in account workbooks; original and settlement values, currencies, FX, and fees remain distinguishable.
+35. Workbook generation, formula validation, or recalculation failure leaves canonical Markdown/accounting state unchanged and preserves the prior usable workbook; a replacement is staged and validated before safe replacement.
+36. Original evidence remains preserved and separate from OCR/extraction output. Low-confidence, impossible, malicious, timed-out, or failed extraction cannot mutate authoritative accounting state without required validation/review.
+37. A file sent to Hermes enters the same secure Raw/evidence pipeline, appears in the app review queue when needed, and does not create Hermes-only financial or evidence storage.
+38. Canvas account lanes show transactions in the correct account and chronological order. Internal transfer edges connect source and destination effects using one transfer ID and preserve lifecycle, currencies, fees, and accounting neutrality.
+39. Canvas balances are derived from validated engine results, agree with engine balances, and distinguish bank-reported observations. Saved layouts and other canvas views cannot mutate canonical financial records.
+40. When retained under the user's policy, raw and normalized location facts and their provenance remain separately representable; unknown/online locations are not fabricated, and opt-out applies to structured retention and derived surfaces.
+41. Deterministic fault injection across important multi-file and engine-store commit boundaries always recovers to the valid pre-operation state or complete post-operation state, never a half-committed operation.
+42. In the defined 1,000 SAR / 200 SAR / 300 SAR transfer crash test, recovery yields only A=1,000 and B=200, or A=700 and B=500; neither one-sided result is possible.
 
 ## 44. Open questions and intentionally deferred decisions
 
 The following questions must remain visibly unresolved until evidence is gathered:
 
-- Which upstream accounting application, if any, should be reused, adapted, or merely studied?
+- Which supported KMyMoney version, license/compliance path, public API or extension surface, storage mode, and integration mechanism satisfy the prototype gates?
+- What fallback or alternative should be evaluated if a hard KMyMoney prototype gate fails?
 - Which language and desktop UI technology best support the shared core and three target platforms?
 - Should the rules core be an in-process library, local service, or both?
 - Which Markdown metadata encoding and parser provide the safest round-trip behavior?
 - Which accounting model and double-entry boundary best represent personal finance, liabilities, goals, and conceptual allocations?
+- Which KMyMoney-supported operations cannot losslessly represent the Hermes-owned domain, and what adapter-level extensions or explicit unsupported/review states are appropriate?
 - Which data must be stored as durable journal events rather than current-state Markdown?
 - How should exact decimal precision and currency minor units be represented for all supported currencies?
 - What is the final canonical placement for evidence after Raw intake?
@@ -1141,6 +1259,8 @@ The following questions must remain visibly unresolved until evidence is gathere
 - What is the minimum command vocabulary that remains expressive without overwhelming a small model?
 - Which operations should require preview, confirmation, or human review?
 - How should backup, restore, merge, and multi-device folder synchronization work?
+- Which spreadsheet generation and calculation runtimes provide reliable cross-platform formula recalculation without making workbooks authoritative?
+- What location-retention defaults and exact privacy controls should apply to source extraction, structured metadata, derived views, and backups?
 - What investment features are required, if any, and what accounting or market-data dependencies do they introduce?
 - What reports and conversion policies are necessary for multi-currency totals?
 - How should tax-related fields be represented without implying tax advice or jurisdictional correctness?
